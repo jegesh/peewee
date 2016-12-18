@@ -43,11 +43,6 @@ try:
 except ImportError:
     import json
 
-try:
-    from vtfunc import TableFunction
-except ImportError:
-    pass
-
 from peewee import *
 from peewee import EnclosedClause
 from peewee import Entity
@@ -952,20 +947,6 @@ class SqliteExtDatabase(SqliteDatabase):
             return
         return super(SqliteExtDatabase, self).create_index(
             model_class, field_name, unique)
-
-    def granular_transaction(self, lock_type='deferred'):
-        assert lock_type.lower() in ('deferred', 'immediate', 'exclusive')
-        return granular_transaction(self, lock_type)
-
-
-class granular_transaction(transaction):
-    def __init__(self, db, lock_type='deferred'):
-        self.db = db
-        self.conn = self.db.get_conn()
-        self.lock_type = lock_type
-
-    def _begin(self):
-        self.db.begin(self.lock_type)
 
 
 OP.MATCH = 'match'

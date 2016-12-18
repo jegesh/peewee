@@ -5,6 +5,7 @@ from functools import partial
 
 from peewee import *
 from peewee import ModelOptions
+from peewee import sqlite3
 from playhouse.tests.base import compiler
 from playhouse.tests.base import database_initializer
 from playhouse.tests.base import ModelTestCase
@@ -18,6 +19,7 @@ from playhouse.tests.models import *
 
 
 in_memory_db = database_initializer.get_in_memory_database()
+supports_tuples = sqlite3.sqlite_version_info >= (3, 15, 0)
 
 class GCModel(Model):
     name = CharField(unique=True)
@@ -2280,3 +2282,48 @@ class TestDefaultDirtyBehavior(PeeweeTestCase):
 
         dm3_db = DM.get(DM.id == dm3.id)
         self.assertEqual(dm3_db.field, 4)
+
+
+class TestFunctionCoerceRegression(PeeweeTestCase):
+    def test_function_coerce(self):
+        class M1(Model):
+            data = IntegerField()
+            class Meta:
+                database = in_memory_db
+
+        class M2(Model):
+            id = IntegerField()
+            class Meta:
+                database = in_memory_db
+
+        in_memory_db.create_tables([M1, M2])
+
+        for i in range(3):
+            M1.create(data=i)
+            M2.create(id=i + 1)
+
+        qm1 = M1.select(fn.GROUP_CONCAT(M1.data).coerce(False).alias('data'))
+        qm2 = M2.select(fn.GROUP_CONCAT(M2.id).coerce(False).alias('ids'))
+
+        m1 = qm1.get()
+        self.assertEqual(m1.data, '0,1,2')
+
+        m2 = qm2.get()
+        self.assertEqual(m2.ids, '1,2,3')
+
+
+@skip_unless(
+    lambda: (isinstance(test_db, PostgresqlDatabase) or
+             (isinstance(test_db, SqliteDatabase) and supports_tuples)))
+class TestTupleComparison(ModelTestCase):
+    requires = [User]
+
+    def test_tuples(self):
+        ua = User.create(username='user-a')
+        ub = User.create(username='user-b')
+        uc = User.create(username='user-c')
+        query = User.select().where(
+            Tuple(User.username, User.id) == ('user-b', ub.id))
+        self.assertEqual(query.count(), 1)
+        obj = query.get()
+        self.assertEqual(obj, ub)
