@@ -11,7 +11,7 @@ readme = f.read()
 f.close()
 
 setup_kwargs = {}
-cython_min_version = '0.22.1'
+cython_min_version = '0.22.2'
 
 try:
     from Cython.Distutils import build_ext
